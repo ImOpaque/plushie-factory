@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, Html, useGLTF } from "@react-three/drei";
 import { AnimatePresence } from "framer-motion";
 import { SceneEditorPanel } from "../editor/SceneEditorPanel";
+import { resolveMachineGltfUrl } from "../../data/machineModel";
 import { PlushieScene, onFactoryCanvasCreated } from "../../three/PlushieScene";
 import { useGameStore } from "../../stores/gameStore";
 import { useSceneEditorStore } from "../../stores/sceneEditorStore";
@@ -21,6 +22,12 @@ export function PlushieStage() {
   useEffect(() => {
     if (TEDDY_GLTF) {
       useGLTF.preload(TEDDY_GLTF);
+    }
+    const machineUrl = resolveMachineGltfUrl();
+    if (machineUrl) {
+      void Promise.resolve(useGLTF.preload(machineUrl)).catch((e: unknown) => {
+        console.warn("[PlushieStage] machine GLB preload failed", e);
+      });
     }
   }, []);
 

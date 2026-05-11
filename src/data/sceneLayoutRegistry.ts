@@ -34,7 +34,11 @@ export const SCENE_ENTITY_META: Record<
     category: "Stage",
     hint: "Floor, conveyor, rails, walls, basket",
   },
-  machine: { label: "Plushie machine", category: "Stage", hint: "Hull, glass, slide" },
+  machine: {
+    label: "Plushie machine",
+    category: "Stage",
+    hint: "GLB (`machine.glb`) or procedural hull — move/rotate/scale the whole unit",
+  },
   spout_anchor: {
     label: "Drop spout",
     category: "Stage",
