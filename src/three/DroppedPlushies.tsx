@@ -1,19 +1,14 @@
-import { Suspense, useCallback, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Clone, useGLTF } from "@react-three/drei";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CuboidCollider,
   RapierRigidBody,
   RigidBody,
   useAfterPhysicsStep,
 } from "@react-three/rapier";
-import type { Group, Object3D } from "three";
+import type { Group } from "three";
 import { Vector3 } from "three";
 import { useGameStore } from "../stores/gameStore";
-import { createPreparedPlushieGltfClone } from "./plushieGltfPrepare";
 import { TinyPlushieVisual } from "./TinyPlushieVisual";
-
-const GLTF_URL = import.meta.env.VITE_TEDDY_GLTF_URL?.trim();
 
 const MAX_DROPS = 8;
 const BELT_TOP_Y = -0.515;
@@ -21,14 +16,11 @@ const BELT_CENTER_Z = 0.25;
 const BELT_HALF_X = 1.78;
 const BELT_HALF_Z = 0.64;
 const BELT_SURFACE_VX = 0.78;
-/** Slide volume (world): under spout → belt. */
 const SLIDE_X = { min: -0.52, max: 0.58 } as const;
 const SLIDE_Z = { min: -0.05, max: 0.48 } as const;
 const SLIDE_Y = { min: -0.66, max: -0.34 } as const;
-/** Remove once deep in collection bin. */
 const DESPAWN_X_MIN = 2.32;
 const DESPAWN_BIN_DEPTH_Y = -0.46;
-const DROP_GLTF_FIT = 0.13;
 
 type DropItem = { id: string; position: Vector3 };
 
@@ -41,28 +33,38 @@ function randomId(): string {
 type SingleDropProps = {
   item: DropItem;
   onRemove: (id: string) => void;
-  gltfPrototype: Object3D | null;
 };
 
-function SingleDroppedPlushie({ item, onRemove, gltfPrototype }: SingleDropProps) {
+function SingleDroppedPlushie({ item, onRemove }: SingleDropProps) {
   const rb = useRef<RapierRigidBody>(null);
-  const seededImpulse = useRef(false);
 
-  useFrame(() => {
-    const body = rb.current;
-    if (!body || seededImpulse.current) return;
-    seededImpulse.current = true;
-    body.wakeUp();
-    const zBias = (BELT_CENTER_Z - item.position.z) * 0.4;
-    body.setLinvel(
-      {
-        x: 0.06 + Math.random() * 0.1,
-        y: -0.38 - Math.random() * 0.18,
-        z: zBias + (Math.random() - 0.5) * 0.06,
-      },
-      true
-    );
-  });
+  useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+    const run = () => {
+      if (cancelled) return;
+      const body = rb.current;
+      if (!body) {
+        if (attempts++ < 24) requestAnimationFrame(run);
+        return;
+      }
+      body.wakeUp();
+      const zBias = (BELT_CENTER_Z - item.position.z) * 0.4;
+      body.setLinvel(
+        {
+          x: 0.06 + Math.random() * 0.1,
+          y: -0.38 - Math.random() * 0.18,
+          z: zBias + (Math.random() - 0.5) * 0.06,
+        },
+        true
+      );
+    };
+    const id = requestAnimationFrame(run);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [item.id, item.position.x, item.position.y, item.position.z]);
 
   useAfterPhysicsStep(() => {
     const body = rb.current;
@@ -126,8 +128,6 @@ function SingleDroppedPlushie({ item, onRemove, gltfPrototype }: SingleDropProps
     body.setAngvel({ x: w.x * 0.91, y: w.y * 0.88, z: w.z * 0.91 }, true);
   });
 
-  const useGltf = Boolean(gltfPrototype);
-
   return (
     <RigidBody
       ref={rb}
@@ -140,29 +140,21 @@ function SingleDroppedPlushie({ item, onRemove, gltfPrototype }: SingleDropProps
       mass={0.38}
       canSleep
     >
-      {useGltf ? (
-        <CuboidCollider args={[0.085, 0.1, 0.07]} position={[0, 0.1, 0]} friction={0.55} />
-      ) : (
-        <CuboidCollider args={[0.065, 0.085, 0.055]} position={[0, 0.07, 0]} friction={0.55} />
-      )}
+      <CuboidCollider args={[0.065, 0.085, 0.055]} position={[0, 0.07, 0]} friction={0.55} />
       <group>
-        {useGltf && gltfPrototype ? (
-          <Clone object={gltfPrototype} deep castShadow={false} receiveShadow={false} />
-        ) : (
-          <TinyPlushieVisual />
-        )}
+        <TinyPlushieVisual variant="drop" />
       </group>
     </RigidBody>
   );
 }
 
-function useSpawnDrops(spawnAnchorRef: React.RefObject<Group>) {
+function useSpawnDrops(spawnAnchorRef: React.RefObject<Group | null>) {
   const plushieTapNonce = useGameStore((s) => s.plushieTapNonce);
   const lastNonce = useRef(plushieTapNonce);
   const [drops, setDrops] = useState<DropItem[]>([]);
   const spawnScratch = useRef(new Vector3());
 
-  useFrame(() => {
+  useEffect(() => {
     if (plushieTapNonce <= lastNonce.current) return;
 
     const anchor = spawnAnchorRef.current;
@@ -185,7 +177,7 @@ function useSpawnDrops(spawnAnchorRef: React.RefObject<Group>) {
       if (next.length > MAX_DROPS) next.splice(0, next.length - MAX_DROPS);
       return next;
     });
-  });
+  }, [plushieTapNonce, spawnAnchorRef]);
 
   const remove = useCallback((id: string) => {
     setDrops((prev) => prev.filter((d) => d.id !== id));
@@ -194,72 +186,17 @@ function useSpawnDrops(spawnAnchorRef: React.RefObject<Group>) {
   return { drops, remove };
 }
 
-function DroppedPlushiesGltfInner({
-  url,
-  spawnAnchorRef,
-}: {
-  url: string;
-  spawnAnchorRef: React.RefObject<Group>;
-}) {
-  const gltf = useGLTF(url);
-  const prototype = useMemo(
-    () => createPreparedPlushieGltfClone(gltf.scene, DROP_GLTF_FIT, "none"),
-    [gltf.scene]
-  );
-
-  const { drops, remove } = useSpawnDrops(spawnAnchorRef);
-
-  return (
-    <group name="dropped_plushies">
-      {drops.map((item) => (
-        <SingleDroppedPlushie
-          key={item.id}
-          item={item}
-          onRemove={remove}
-          gltfPrototype={prototype}
-        />
-      ))}
-    </group>
-  );
-}
-
-function DroppedPlushiesGltf({
-  url,
-  spawnAnchorRef,
-}: {
-  url: string;
-  spawnAnchorRef: React.RefObject<Group>;
-}) {
-  return (
-    <Suspense fallback={null}>
-      <DroppedPlushiesGltfInner url={url} spawnAnchorRef={spawnAnchorRef} />
-    </Suspense>
-  );
-}
-
-function DroppedPlushiesTiny({ spawnAnchorRef }: { spawnAnchorRef: React.RefObject<Group> }) {
-  const { drops, remove } = useSpawnDrops(spawnAnchorRef);
-  return (
-    <group name="dropped_plushies">
-      {drops.map((item) => (
-        <SingleDroppedPlushie
-          key={item.id}
-          item={item}
-          onRemove={remove}
-          gltfPrototype={null}
-        />
-      ))}
-    </group>
-  );
-}
-
 type DroppedPlushiesProps = {
-  spawnAnchorRef: React.RefObject<Group>;
+  spawnAnchorRef: React.RefObject<Group | null>;
 };
 
 export function DroppedPlushies({ spawnAnchorRef }: DroppedPlushiesProps) {
-  if (GLTF_URL) {
-    return <DroppedPlushiesGltf url={GLTF_URL} spawnAnchorRef={spawnAnchorRef} />;
-  }
-  return <DroppedPlushiesTiny spawnAnchorRef={spawnAnchorRef} />;
+  const { drops, remove } = useSpawnDrops(spawnAnchorRef);
+  return (
+    <group name="dropped_plushies">
+      {drops.map((item) => (
+        <SingleDroppedPlushie key={item.id} item={item} onRemove={remove} />
+      ))}
+    </group>
+  );
 }

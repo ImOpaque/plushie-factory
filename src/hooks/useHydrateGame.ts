@@ -12,9 +12,14 @@ export function useHydrateGame(): void {
     let cancelled = false;
 
     void (async () => {
-      const data = await loadGame();
-      if (cancelled) return;
-      hydrateFromSave(data);
+      try {
+        const data = await loadGame();
+        if (cancelled) return;
+        hydrateFromSave(data);
+      } catch (e) {
+        console.error("[useHydrateGame] loadGame failed", e);
+        if (!cancelled) hydrateFromSave(null);
+      }
     })();
 
     return () => {

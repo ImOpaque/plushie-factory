@@ -2,8 +2,10 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, Html, useGLTF } from "@react-three/drei";
 import { AnimatePresence } from "framer-motion";
+import { SceneEditorPanel } from "../editor/SceneEditorPanel";
 import { PlushieScene, onFactoryCanvasCreated } from "../../three/PlushieScene";
 import { useGameStore } from "../../stores/gameStore";
+import { useSceneEditorStore } from "../../stores/sceneEditorStore";
 import {
   FloatingClickPopup,
   type FloatingPopupItem,
@@ -20,6 +22,17 @@ export function PlushieStage() {
     if (TEDDY_GLTF) {
       useGLTF.preload(TEDDY_GLTF);
     }
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await useSceneEditorStore.getState().hydrateFromStorage();
+      } catch (e) {
+        console.error("[PlushieStage] scene editor hydrate failed", e);
+        useSceneEditorStore.setState({ hydrated: true });
+      }
+    })();
   }, []);
 
   const handlePlushieClick = useCallback(() => {
@@ -80,6 +93,8 @@ export function PlushieStage() {
           ))}
         </AnimatePresence>
       </div>
+
+      <SceneEditorPanel />
     </div>
   );
 }

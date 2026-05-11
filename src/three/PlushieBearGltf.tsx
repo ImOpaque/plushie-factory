@@ -22,8 +22,12 @@ export function PlushieBearGltf({ url, fitTargetMaxDim }: PlushieBearGltfProps) 
   const root = useMemo(() => gltf.scene.clone(true) as Object3D, [gltf.scene]);
 
   useLayoutEffect(() => {
-    applyFactoryPlushieGltfSurface(root, "full");
-    fitAndCenterPlushieGltfRoot(root, targetDim);
+    try {
+      applyFactoryPlushieGltfSurface(root, "full");
+      fitAndCenterPlushieGltfRoot(root, targetDim);
+    } catch (e) {
+      console.error("[PlushieBearGltf] prepare failed", e);
+    }
   }, [root, targetDim]);
 
   return <primitive object={root} />;

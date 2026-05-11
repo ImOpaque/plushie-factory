@@ -1,11 +1,10 @@
 import { useMemo, useRef } from "react";
-import type { RefObject } from "react";
 import { CylinderGeometry, Group, MeshStandardMaterial, SphereGeometry } from "three";
 import { PlushieBear } from "./PlushieBear";
+import { SceneLayoutEntity } from "./sceneEditor/SceneLayoutEntity";
 
 type CentrifugePlushieStationProps = {
   onPlushieClick: () => void;
-  spawnAnchorRef: RefObject<Group>;
 };
 
 const NEON = "#22d0ff";
@@ -19,10 +18,7 @@ const SLIDE = "#3a4558";
  * Outlet is wrapped in a second **Y = π** so the slide + spout world pose stays correct.
  * Glass uses cheap transparent standard material (no transmission).
  */
-export function CentrifugePlushieStation({
-  onPlushieClick,
-  spawnAnchorRef,
-}: CentrifugePlushieStationProps) {
+export function CentrifugePlushieStation({ onPlushieClick }: CentrifugePlushieStationProps) {
   const userBearRotRef = useRef<Group>(null);
 
   const hullMat = useMemo(
@@ -139,7 +135,7 @@ export function CentrifugePlushieStation({
   );
 
   return (
-    <group name="plushie_maker_root" position={[-0.02, 0.06, -0.06]}>
+    <group name="plushie_maker_root">
       {/* π on Y: hollow + glass face +world Z (belt); outlet nested with second π keeps slide/spawn world pose */}
       <group name="plushie_maker_inner" rotation={[0, Math.PI, 0]}>
         {/* --- Shell: deeper in Z so bear stays inside --- */}
@@ -171,8 +167,7 @@ export function CentrifugePlushieStation({
           decay={2}
         />
 
-        {/* Bear centered in chamber, clear of hull +Z wall */}
-        <group ref={userBearRotRef} position={[0, 0.3, -0.12]}>
+        <SceneLayoutEntity id="hero_bear" comboRef={userBearRotRef}>
           <group scale={0.34}>
             <PlushieBear
               onPlushieClick={onPlushieClick}
@@ -180,7 +175,7 @@ export function CentrifugePlushieStation({
               dragRotateParentRef={userBearRotRef}
             />
           </group>
-        </group>
+        </SceneLayoutEntity>
 
         {/* Glass slightly proud of hull +Z face (~0.37) */}
         <mesh position={[0, 0.36, 0.34]} material={glassMat} castShadow={false} receiveShadow={false}>
@@ -272,8 +267,6 @@ export function CentrifugePlushieStation({
             </mesh>
           </group>
         </group>
-
-        <group ref={spawnAnchorRef} position={[-0.02, -0.48, -0.26]} name="spout_spawn" />
       </group>
     </group>
   );
